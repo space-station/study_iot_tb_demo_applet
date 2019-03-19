@@ -1,0 +1,10 @@
+/**index.wxss**/
+.login_button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login_view {
+  margin-top: 200px;
+}

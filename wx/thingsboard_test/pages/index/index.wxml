@@ -1,0 +1,9 @@
+<!--index.wxml-->
+<view class="container">
+  <view class="login_button">
+    <button bindtap='login'> 开始测试 </button>
+  </view>
+  <view class="login_view">
+    <text> {{login_status}} </text>
+  </view>
+</view>
