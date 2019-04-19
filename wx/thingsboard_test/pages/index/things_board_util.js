@@ -2,17 +2,35 @@
 
 const debug = false
 var mServerAddress = ''
+var mServerWsAddress = ''
+var mSocketTask
+var mSubscribeCallbacks = [{}]
 
+const HTTP_BAD_REQUEST = 400
 const HTTP_UNAUTHORIZED = 401
 const HTTP_FORBIDDEN = 403
 const HTTP_NOT_FOUND = 404
 
+const SUBSCRIBE_TYPE_TS = 1 //timeseries
+const SUBSCRIBE_TYPE_ATTR = 2 //attributes
+const SUBSCRIBE_TYPE_HIS = 3 //history
+
+const ENTITY_TYPE_TENANT = "TENANT"
+const ENTITY_TYPE_CUSTOMER = "CUSTOMER"
+const ENTITY_TYPE_USER = "USER"
+const ENTITY_TYPE_DASHBOARD = "DASHBOARD"
+const ENTITY_TYPE_ASSET = "ASSET"
+const ENTITY_TYPE_DEVICE = "DEVICE"
+const ENTITY_TYPE_ALARM = "ALARM"
+
 /**
  * init util
  * @param {string} serverAddress: target server address
+ * @param {string} websocketAddress: target server websocket address
  */
-function init(serverAddress) {
+function init(serverAddress, websocketAddress) {
   mServerAddress = serverAddress
+  mServerWsAddress = websocketAddress
 }
 
 /**
@@ -60,6 +78,38 @@ function createDevice(token, deviceName, callback) {
       name: deviceName,
       type: 'default',
     },
+    header: {
+      'X-Authorization': 'Bearer ' + token,
+    },
+    method: 'POST',
+    success(res) {
+      if (debug) console.log('createDevice success status code ' + res.statusCode)
+      if (res.statusCode == HTTP_UNAUTHORIZED) {
+        callback(false, res.data)
+      } else if (res.statusCode == HTTP_BAD_REQUEST) {
+        callback(false, res.data)
+      } else {
+        callback(true, res.data)
+      }
+    },
+    fail(res) {
+      if (debug) console.log('createDevice fail')
+      callback(false, null)
+    },
+  })
+}
+
+/**
+ * save device(create or modify)
+ * TODO need more device information in parameter
+ * @param {string} token: login token
+ * @param {Object} deviceData: created or modified device data
+ * @param {function} callback: callback for success or fail. param contain (boolean isSuccess, Object resData)
+ */
+function saveDevice(token, deviceData, callback) {
+  wx.request({
+    url: mServerAddress + '/api/device',
+    data: deviceData,
     header: {
       'X-Authorization': 'Bearer ' + token,
     },
@@ -423,13 +473,112 @@ function deleteCustomerById(token, id, callback) {
   })
 }
 
+/**
+ * subscribe entity information update
+ * @param {string} token: login token
+ * @param {number} subscribeType: subscribe type see {#SUBSCRIBE_TYPE_ATTR}
+ * @param {number} cmdId: unique command id for this subscription
+ * @param {string} entityType: entity type see {#ENTITY_TYPE_TENANT}
+ * @param {string} entityId: target entity id
+ * @param {string[]} keys: comma separated list of data keys
+ * @param {function} callback: callback for subscription information is returned. param contain (Object returnData)
+ */
+function subscribeInformation(token, subscribeType, cmdId, entityType, entityId, keys, callback) {
+  processSubscribe(token, subscribeType, cmdId, entityType, entityId, keys, callback, false)
+}
+
+/**
+ * unsubscribe entity information
+ * @param {string} token: login token
+ * @param {number} subscribeType: subscribe type see {#SUBSCRIBE_TYPE_ATTR}
+ * @param {number} cmdId: unique command id for subscription
+ */
+function unsubscribeInformation(token, subscribeType, cmdId) {
+  processSubscribe(token, subscribeType, cmdId, null, null, null, null, true)
+}
+
+var mSocketIsOpen = false
+/**
+ * process subscribe
+ * @param {string} token: login token
+ * @param {number} subscribeType: subscribe type see {#SUBSCRIBE_TYPE_ATTR}
+ * @param {number} cmdId: unique command id for this subscription
+ * @param {string} entityType: entity type see {#ENTITY_TYPE_TENANT}
+ * @param {string} entityId: target entity id
+ * @param {string[]} keys: comma separated list of data keys
+ * @param {function} callback: callback for subscription information is returned. param contain (Object returnData)
+ * @param {boolean} isUnsubscribe: it is true if unsubscribe
+ */
+function processSubscribe(token, subscribeType, cmdId, entityType, entityId, keys, callback, isUnsubscribe) {
+  function sendData() {
+    var cmdsObject = [{
+      entityType: entityType,
+      entityId: entityId,
+      keys: keys,
+      cmdId: cmdId,
+      unsubscribe: isUnsubscribe
+    }]
+
+    var object = {
+      tsSubCmds: [],
+      historyCmds: [],
+      attrSubCmds: []
+    };
+
+    switch (subscribeType) {
+      case SUBSCRIBE_TYPE_ATTR:
+        object.attrSubCmds = cmdsObject
+        break
+      case SUBSCRIBE_TYPE_HIS:
+        object.historyCmds = cmdsObject
+        break
+      case SUBSCRIBE_TYPE_TS:
+        object.tsSubCmds = cmdsObject
+        break
+    }
+
+    var data = JSON.stringify(object);
+    mSocketTask.send({
+      data: data,
+    })
+  }
+
+  mSubscribeCallbacks[cmdId] = {
+    callback: callback
+  }
+
+  if (mSocketTask == null) {
+    mSocketTask = wx.connectSocket({
+      url: mServerWsAddress + '/api/ws/plugins/telemetry?token=' + token,
+    })
+    mSocketTask.onMessage(function(res) {
+      var object = JSON.parse(res['data'])
+      if (mSubscribeCallbacks[object.subscriptionId].callback != null) {
+        mSubscribeCallbacks[object.subscriptionId].callback(object)
+      }
+    })
+    mSocketTask.onOpen(function(res) {
+      mSocketIsOpen = true
+      sendData()
+    })
+  } else {
+    if (mSocketIsOpen) {
+      sendData()
+    } else {
+      mSocketTask.onOpen(function(res) {
+        sendData()
+      })
+    }
+  }
+}
 
 /**
  * test all function
  */
 function utilTest() {
-  init('http://192.168.4.119:8080')
-  //init('https://lianluotu.cn')
+  init('http://192.168.6.108:8080', 'ws://192.168.6.108:8080')
+  //init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
+  //init('https://lianluotu.cn', 'wss://lianluotu.cn')
   var mToken = ''
   login('tenant@thingsboard.org', 'tenant',
     function(isSuccess, token) {
@@ -438,7 +587,40 @@ function utilTest() {
       testDevice(mToken)
       testAsset(mToken)
       testCusomer(mToken)
+      testSubscription(mToken)
     })
+}
+
+function testSubscription(token) {
+  const TEST_CMD_ID = 1
+  const TEST_CMD_ID_2 = 2
+  const TEST_CMD_ID_3 = 3
+  createDevice(token, "subscription_test", function(isSuccess, resData) {
+    if (isSuccess) {
+      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
+        console.log('testSubscription subscription update TEST1 data ' + data)
+      })
+
+      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
+        console.log('testSubscription subscription update TEST2 data ' + data)
+      })
+
+      unsubscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2)
+
+      setTimeout(function() {
+        subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_3, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
+          console.log('testSubscription subscription update TEST3 data ' + data)
+        })
+      }, 2000)
+    }
+
+    setTimeout(function() {
+      deleteDeviceById(token, resData['id']['id'], function(isSuccess) {
+        console.log('testDevice deleteDeviceById isSuccess ' + isSuccess)
+      })
+    }, 10000)
+
+  })
 }
 
 /**
@@ -448,6 +630,7 @@ function testDevice(token) {
   createDevice(token, "test", function(isSuccess, resData) {
     printMapObject('testDevice createDevice', resData)
 
+    if (!isSuccess) return
     getDeviceById(token, resData['id']['id'], function(isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testDevice getDeviceById', resData)
@@ -503,10 +686,10 @@ function testAsset(token) {
  * test case about customer
  */
 function testCusomer(token) {
-  createCustomer(token, "test", function (isSuccess, resData) {
+  createCustomer(token, "test", function(isSuccess, resData) {
     printMapObject('testCusomer createCustomer', resData)
 
-    getCustomerById(token, resData['id']['id'], function (isSuccess, resData) {
+    getCustomerById(token, resData['id']['id'], function(isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testCusomer getCustomerById', resData)
       } else {
@@ -514,7 +697,7 @@ function testCusomer(token) {
       }
     })
 
-    getCustomerByTitle(token, resData['title'], function (isSuccess, resData) {
+    getCustomerByTitle(token, resData['title'], function(isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testCusomer getCustomerByTitle', resData)
       } else {
@@ -522,7 +705,7 @@ function testCusomer(token) {
       }
     })
 
-    deleteCustomerById(token, resData['id']['id'], function (isSuccess) {
+    deleteCustomerById(token, resData['id']['id'], function(isSuccess) {
       console.log('testCusomer deleteCustomerById isSuccess ' + isSuccess)
     })
   })
@@ -543,6 +726,7 @@ module.exports = {
   init: init,
   login: login,
   createDevice: createDevice,
+  saveDevice: saveDevice,
   getDeviceById: getDeviceById,
   getDeviceByName: getDeviceByName,
   deleteDeviceById: deleteDeviceById,
@@ -554,5 +738,7 @@ module.exports = {
   getCustomerById: getCustomerById,
   getCustomerByTitle: getCustomerByTitle,
   deleteCustomerById: deleteCustomerById,
+  subscribeInformation: subscribeInformation,
+  unsubscribeInformation: unsubscribeInformation,
   utilTest: utilTest,
 }
