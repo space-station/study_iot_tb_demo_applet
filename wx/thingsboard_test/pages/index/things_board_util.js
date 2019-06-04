@@ -768,31 +768,28 @@ function test_gen(task_ctx){
 function testGeneratorWithPromise() {
   var task_ctx = { token: '' };
   task_ctx.type = "generator_with_promise"
-  co(wrapGeneratorWithPromise(task_ctx))
+  co(generatorWithPromise, task_ctx)
   .catch(function(t_ctx){
     console.log("exception caught inside test_gen_with_promise catch phase")
     console.log(t_ctx)
   });
 }
 
-function wrapGeneratorWithPromise(task_ctx){
-  return function* generatorWithPromise() {
-    init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
-    console.log("start generatorWithPromise");
+function* generatorWithPromise(task_ctx) {
+  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
+  console.log("start generatorWithPromise");
 
-    try {
-      yield promiseLogin(task_ctx);
-      yield promiseCreateDevice(task_ctx, "test", "default");
-      yield promiseGetDeviceById(task_ctx);
-      yield promiseDeleteDeviceById(task_ctx)
-    }
-    catch (err) {
-      console.log("exception caught inside generator_with_promise function")
-      console.log(err)
-    }
+  try {
+    yield promiseLogin(task_ctx);
+    yield promiseCreateDevice(task_ctx, "test", "default");
+    yield promiseGetDeviceById(task_ctx);
+    yield promiseDeleteDeviceById(task_ctx)
+  }
+  catch (err) {
+    console.log("exception caught inside generator_with_promise function")
+    console.log(err)
   }
 }
-
 
 function testPromise() {
   init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
