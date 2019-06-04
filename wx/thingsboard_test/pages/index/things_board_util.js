@@ -1,32 +1,23 @@
 //TODO now only device control is complete
 
-const debug = false
-var mServerAddress = ''
-var mServerWsAddress = ''
-var mSocketTask
-var mSubscribeCallbacks = [{}]
+const co = require('../../libs/co')
 
-const HTTP_BAD_REQUEST = 400
-const HTTP_UNAUTHORIZED = 401
-const HTTP_FORBIDDEN = 403
-const HTTP_NOT_FOUND = 404
+const debug = true
+var mServerAddress = ''
+var mServerWsAddress=''
+var mSubscribeCallbacks = [{}]
+var mSocketTask
 
 const SUBSCRIBE_TYPE_TS = 1 //timeseries
 const SUBSCRIBE_TYPE_ATTR = 2 //attributes
 const SUBSCRIBE_TYPE_HIS = 3 //history
-
-const ENTITY_TYPE_TENANT = "TENANT"
-const ENTITY_TYPE_CUSTOMER = "CUSTOMER"
-const ENTITY_TYPE_USER = "USER"
-const ENTITY_TYPE_DASHBOARD = "DASHBOARD"
-const ENTITY_TYPE_ASSET = "ASSET"
-const ENTITY_TYPE_DEVICE = "DEVICE"
-const ENTITY_TYPE_ALARM = "ALARM"
+const HTTP_UNAUTHORIZED = 401
+const HTTP_FORBIDDEN = 403
+const HTTP_NOT_FOUND = 404
 
 /**
  * init util
  * @param {string} serverAddress: target server address
- * @param {string} websocketAddress: target server websocket address
  */
 function init(serverAddress, websocketAddress) {
   mServerAddress = serverAddress
@@ -39,7 +30,7 @@ function init(serverAddress, websocketAddress) {
  * @param {string} password: password
  * @param {function} callback for success or fail. param contain (boolean isSuccess, string token)
  */
-function login(userName, password, callback) {
+function login(userName, password, task_ctx,func_success,func_fail) {
   wx.request({
     url: mServerAddress + '/api/auth/login',
     data: {
@@ -49,14 +40,19 @@ function login(userName, password, callback) {
     method: 'POST',
     success(res) {
       if (debug) console.log('login success status code ' + res.statusCode + ' data ' + res.data['token'])
-      callback(true, res.data['token'])
+      //callback(true, res.data['token'])
+      task_ctx.token=res.data['token']
+      func_success(task_ctx)
     },
     fail(res) {
       if (debug) console.log('login fail')
-      callback(false, null)
+      //callback(false, null)
+      func_fail(task_ctx)
     },
   })
+  
 }
+
 
 function findDevice(deviceName) {
   wx.request({
@@ -71,12 +67,13 @@ function findDevice(deviceName) {
  * @param {string} deviceName: created device name
  * @param {function} callback: callback for success or fail. param contain (boolean isSuccess, Object resData)
  */
-function createDevice(token, deviceName, callback) {
+function createDevice(deviceName, type, task_ctx, func_success, func_fail) {
+  var token= task_ctx.token
   wx.request({
     url: mServerAddress + '/api/device',
     data: {
       name: deviceName,
-      type: 'default',
+      type: type,
     },
     header: {
       'X-Authorization': 'Bearer ' + token,
@@ -85,46 +82,19 @@ function createDevice(token, deviceName, callback) {
     success(res) {
       if (debug) console.log('createDevice success status code ' + res.statusCode)
       if (res.statusCode == HTTP_UNAUTHORIZED) {
-        callback(false, res.data)
-      } else if (res.statusCode == HTTP_BAD_REQUEST) {
-        callback(false, res.data)
+        //callback(false, res.data)
+        func_fail(res.data)
       } else {
-        callback(true, res.data)
+        task_ctx.id = res.data['id']['id']
+        //callback(true, res.data['id']['id'])
+        console.log('device id='+res.data['id']['id'])
+        func_success(task_ctx)
       }
     },
     fail(res) {
       if (debug) console.log('createDevice fail')
-      callback(false, null)
-    },
-  })
-}
-
-/**
- * save device(create or modify)
- * TODO need more device information in parameter
- * @param {string} token: login token
- * @param {Object} deviceData: created or modified device data
- * @param {function} callback: callback for success or fail. param contain (boolean isSuccess, Object resData)
- */
-function saveDevice(token, deviceData, callback) {
-  wx.request({
-    url: mServerAddress + '/api/device',
-    data: deviceData,
-    header: {
-      'X-Authorization': 'Bearer ' + token,
-    },
-    method: 'POST',
-    success(res) {
-      if (debug) console.log('createDevice success status code ' + res.statusCode)
-      if (res.statusCode == HTTP_UNAUTHORIZED) {
-        callback(false, res.data)
-      } else {
-        callback(true, res.data)
-      }
-    },
-    fail(res) {
-      if (debug) console.log('createDevice fail')
-      callback(false, null)
+      //callback(false, null)
+      func_fail(task_ctx)
     },
   })
 }
@@ -473,6 +443,32 @@ function deleteCustomerById(token, id, callback) {
   })
 }
 
+function getDeviceTokenByDeviceId(token, id, callback) {
+  if (debug) console.log('getDeviceTokenByDeviceId id=' + id)
+  wx.request({
+    url: mServerAddress + '/api/device/' + id +'/credentials',
+    header: {
+      'X-Authorization': 'Bearer ' + token,
+    },
+    method: 'GET',
+    success(res) {
+      if (debug) console.log('getDeviceTokenByDeviceId success status code ' + res.statusCode)
+      if (res.statusCode == HTTP_UNAUTHORIZED) {
+        callback(false,null)
+      } else if (res.statusCode == HTTP_NOT_FOUND) {
+        callback(false,null)
+      } else {
+        callback(true,res.data['credentialsId'])
+        console.log('device token=' + res.data['credentialsId'])
+      }
+    },
+    fail(res) {
+      if (debug) console.log('getDeviceTokenByDeviceId fail')
+      callback(false,null)
+    }
+  })
+}
+
 /**
  * subscribe entity information update
  * @param {string} token: login token
@@ -484,6 +480,7 @@ function deleteCustomerById(token, id, callback) {
  * @param {function} callback: callback for subscription information is returned. param contain (Object returnData)
  */
 function subscribeInformation(token, subscribeType, cmdId, entityType, entityId, keys, callback) {
+  console.log('subscribeInformation subscribeType ' + subscribeType + ' entityType ' + entityType + ' entityId ' + entityId)
   processSubscribe(token, subscribeType, cmdId, entityType, entityId, keys, callback, false)
 }
 
@@ -551,13 +548,13 @@ function processSubscribe(token, subscribeType, cmdId, entityType, entityId, key
     mSocketTask = wx.connectSocket({
       url: mServerWsAddress + '/api/ws/plugins/telemetry?token=' + token,
     })
-    mSocketTask.onMessage(function(res) {
+    mSocketTask.onMessage(function (res) {
       var object = JSON.parse(res['data'])
       if (mSubscribeCallbacks[object.subscriptionId].callback != null) {
         mSubscribeCallbacks[object.subscriptionId].callback(object)
       }
     })
-    mSocketTask.onOpen(function(res) {
+    mSocketTask.onOpen(function (res) {
       mSocketIsOpen = true
       sendData()
     })
@@ -565,23 +562,366 @@ function processSubscribe(token, subscribeType, cmdId, entityType, entityId, key
     if (mSocketIsOpen) {
       sendData()
     } else {
-      mSocketTask.onOpen(function(res) {
+      mSocketTask.onOpen(function (res) {
         sendData()
       })
     }
   }
 }
 
+function main(){
+  var task_ctx={success:true,text:''}
+  var type='gen'
+  switch(type){
+    case "gen":
+      test_gen(task_ctx)
+    case "prom":
+      test_prom(task_ctx)
+    default:
+      console.log("must be gen|prom")
+  }
+}
+
+/**
+ * login process
+ */
+function ut_login(task_context,gen) {
+  wx.request({
+    url: mServerAddress + '/api/auth/login',
+    data: {
+      username: 'tenant@thingsboard.org',
+      password: 'tenant',
+    },
+    method: 'POST',
+    success(res) {
+      if (debug) console.log('login success status code ' + res.statusCode + ' data ' + res.data['token'])
+      //callback(true, res.data['token'])
+      task_context.token = res.data['token']
+      //gen.next(res.data['token']);
+      gen.next(task_context)
+    },
+    fail(res) {
+      if (debug) console.log('login fail')
+      //callback(false, null)
+    },
+  })
+
+}
+
+/**
+ * create device process
+ */
+function ut_createDevice(task_context, deviceName, type, gen) {
+  var token=task_context.token
+  wx.request({
+    url: mServerAddress + '/api/device',
+    data: {
+      name: deviceName,
+      type: type,
+    },
+    header: {
+      'X-Authorization': 'Bearer ' + token,
+    },
+    method: 'POST',
+    success(res) {
+      if (debug) console.log('createDevice success status code ' + res.statusCode)
+      if (res.statusCode == HTTP_UNAUTHORIZED) {
+        //callback(false, res.data)
+      } else {
+        task_context.id= res.data['id']['id']
+        //gen.next(res.data)
+        gen.next(task_context)
+        console.log('device id=' + res.data['id']['id'])
+      }
+    },
+    fail(res) {
+      if (debug) console.log('createDevice fail')
+      //callback(false, null)
+    },
+  })
+}
+
+/**
+ * get device by id
+ */
+function ut_getDeviceById(task_context, gen) {
+  var token=task_context.token
+  var id=task_context.id
+  if (debug) console.log('getDeviceById id ' + id)
+  wx.request({
+    url: mServerAddress + '/api/device/' + id,
+    header: {
+      'X-Authorization': 'Bearer ' + token,
+    },
+    method: 'GET',
+    success(res) {
+      if (debug) console.log('getDeviceById success status code ' + res.statusCode)
+      if (res.statusCode == HTTP_UNAUTHORIZED) {
+        //callback(false, res.data)
+      } else if (res.statusCode == HTTP_NOT_FOUND) {
+        //callback(false, res.data)
+      } else {
+        var ret = gen.next()
+        console.log("get device by id next().done = " + ret.done)
+      }
+    },
+    fail(res) {
+      if (debug) console.log('getDeviceById fail')
+      //callback(false, null)
+    }
+  })
+}
+
+/**
+ * delete device by id
+ */
+function ut_deleteDeviceById(task_context, gen) {
+  var token=task_context.token
+  var id=task_context.id
+  if (debug) console.log('deleteDeviceById id ' + id)
+  wx.request({
+    url: mServerAddress + '/api/device/' + id,
+    header: {
+      'X-Authorization': 'Bearer ' + token,
+    },
+    method: 'DELETE',
+    success(res) {
+      if (debug) console.log('deleteDeviceById success status code ' + res.statusCode)
+      if (res.statusCode == HTTP_UNAUTHORIZED) {
+        //callback(false)
+      } else if (res.statusCode == HTTP_NOT_FOUND) {
+        //callback(false)
+      } else {
+        var ret = gen.next();
+        console.log("delete device next().done = " + ret.done)
+      }
+    },
+    fail(res) {
+      if (debug) console.log('deleteDeviceById fail')
+      //callback(false)
+    }
+  })
+}
+
+/**
+ * sm of the util test
+ */
+function* sm_ut(cb_obj){
+  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
+  var task_context = { token: '' };
+  //var token = yield ut_login(cb_obj.cb);
+  task_context= yield ut_login(task_context,cb_obj.cb)
+  console.log("login process done");
+  //var data = yield ut_createDevice(token, "test", "default", cb_obj.cb);
+  task_context = yield ut_createDevice(task_context, "test", "default", cb_obj.cb)
+  console.log("create device process done");
+  //yield ut_getDeviceById(token, data['id']['id'], cb_obj.cb)
+  yield ut_getDeviceById(task_context, cb_obj.cb)
+  console.log("get device process done");
+  //yield ut_deleteDeviceById(token, data['id']['id'], cb_obj.cb)
+  yield ut_deleteDeviceById(task_context,cb_obj.cb)
+  console.log("delete device process done");
+}
+
+/**
+ * run ut
+ */
+function run_ut(){
+  var cb_obj = {cb:null};
+  var gen = null;
+  if(gen){
+    gen = null;
+  }
+  var gen = sm_ut(cb_obj);
+  cb_obj.cb = gen;
+  //var g = sm_ut();
+  gen.next();
+}
+
+function* generator(task_ctx,func_success,func_fail){
+  init('http://192.168.4.119:8080','ws://192.168.4.119:8080')
+  try{
+    yield login('tenant@thingsboard.org', 'tenant',task_ctx,func_success,func_fail)
+    yield createDevice('test','default',task_ctx,func_success,func_fail)
+  }
+  catch(err){
+    console.log("exception caught inside generator function")
+    console.log(err)
+  }
+} 
+
+function test_gen(task_ctx){
+  task_ctx.type="generator"
+  var genObj
+  var func_success=function(t_ctx){
+    genObj.next(t_ctx)
+  }
+  var func_fail=function(t_ctx){
+    genObj.throw(t_ctx)
+  }
+  genObj=generator(task_ctx,func_success,func_fail);
+  genObj.next()
+}
+
+
+function testPromise() {
+  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
+  var task_context = { token: '' };
+  promise_login(task_context).then(function (task_context) {
+    console.log('token------' + task_context.token)
+    return promise_createDevice(task_context, "test", "default")
+  }).then(function (task_context) {
+    console.log('id------' + task_context.id)
+    return promise_getDeviceById(task_context)
+    }).then(function (task_context) {
+      console.log('start delete')
+      promise_deleteDeviceById(task_context)
+  })
+
+}
+
+function promise_login(task_context) {
+  
+  var p= new Promise(function(resolve,reject){
+    wx.request({
+      url: mServerAddress + '/api/auth/login',
+      data: {
+        username: 'tenant@thingsboard.org',
+        password: 'tenant',
+      },
+      method: 'POST',
+      success(res) {
+        if (debug) console.log('login success status code ' + res.statusCode + ' data ' + res.data['token'])
+        var token = res.data['token']
+        //callback(true, res.data['token'])
+        //gen.next(res.data['token']);
+        task_context.token=token
+        resolve(task_context)
+      },
+      fail(res) {
+        if (debug) console.log('login fail')
+        reject('login failed')
+        //callback(false, null)
+      },
+    })
+  })
+  return p;
+}
+
+function promise_createDevice(task_context, deviceName, type) {
+  //var task_context={token:token,id:''}
+  var token=task_context.token
+  var p = new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/device',
+      data: {
+        name: deviceName,
+        type: type,
+      },
+      header: {
+        'X-Authorization': 'Bearer ' + token,
+      },
+      method: 'POST',
+      success(res) {
+        if (debug) console.log('createDevice success status code ' + res.statusCode)
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          //callback(false, res.data)
+        } else {
+          //gen.next(res.data)
+          console.log('device id=' + res.data['id']['id'])
+          task_context.id = res.data['id']['id']
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('createDevice fail')
+        reject('createDevice failed')
+        //callback(false, null)
+      },
+    })
+  })
+  return p;
+}
+
+/**
+ * get device by id
+ */
+function promise_getDeviceById(task_context) {
+  var token=task_context.token
+  var id=task_context.id
+  var p = new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/device/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getDeviceById success status code ' + res.statusCode)
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          //callback(false, res.data)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          //callback(false, res.data)
+        } else {
+          //var ret = gen.next(res.data)
+          resolve(task_context)
+          console.log("get device by id success ")
+        }
+      },
+      fail(res) {
+        if (debug) console.log('getDeviceById fail')
+        reject('getDeviceById failed')
+        //callback(false, null)
+      },
+    })
+  })
+  return p;
+}
+
+/**
+ * delete device by id
+ */
+function promise_deleteDeviceById(task_context) {
+  var token=task_context.token
+  var id=task_context.id
+  var p = new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/device/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + token,
+      },
+      method: 'DELETE',
+      success(res) {
+        if (debug) console.log('deleteDeviceById success status code ' + res.statusCode)
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          //callback(false)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          //callback(false)
+        } else {
+          //ret = gen.next();
+          console.log('deleteDeviceById success!!!')
+        }
+      },
+      fail(res) {
+        if (debug) console.log('deleteDeviceById fail')
+        reject('deleteDeviceById failed')
+        //callback(false)
+      }
+    })
+  })
+  return p;
+}
+
+
 /**
  * test all function
  */
 function utilTest() {
-  init('http://192.168.6.108:8080', 'ws://192.168.6.108:8080')
-  //init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
-  //init('https://lianluotu.cn', 'wss://lianluotu.cn')
+  init('http://192.168.4.119:8080', 'ws://192.168.6.108:8080')
+  //init('https://lianluotu.cn')
   var mToken = ''
   login('tenant@thingsboard.org', 'tenant',
-    function(isSuccess, token) {
+    function (isSuccess, token) {
       console.log('login test isSuccess ' + isSuccess + ' token ' + token)
       mToken = token
       testDevice(mToken)
@@ -591,47 +931,14 @@ function utilTest() {
     })
 }
 
-function testSubscription(token) {
-  const TEST_CMD_ID = 1
-  const TEST_CMD_ID_2 = 2
-  const TEST_CMD_ID_3 = 3
-  createDevice(token, "subscription_test", function(isSuccess, resData) {
-    if (isSuccess) {
-      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
-        console.log('testSubscription subscription update TEST1 data ' + data)
-      })
-
-      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
-        console.log('testSubscription subscription update TEST2 data ' + data)
-      })
-
-      unsubscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2)
-
-      setTimeout(function() {
-        subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_3, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function(data) {
-          console.log('testSubscription subscription update TEST3 data ' + data)
-        })
-      }, 2000)
-    }
-
-    setTimeout(function() {
-      deleteDeviceById(token, resData['id']['id'], function(isSuccess) {
-        console.log('testDevice deleteDeviceById isSuccess ' + isSuccess)
-      })
-    }, 10000)
-
-  })
-}
-
 /**
  * test case about device
  */
 function testDevice(token) {
-  createDevice(token, "test", function(isSuccess, resData) {
+  createDevice(token, "test", function (isSuccess, resData) {
     printMapObject('testDevice createDevice', resData)
 
-    if (!isSuccess) return
-    getDeviceById(token, resData['id']['id'], function(isSuccess, resData) {
+    getDeviceById(token, resData['id']['id'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testDevice getDeviceById', resData)
       } else {
@@ -639,7 +946,7 @@ function testDevice(token) {
       }
     })
 
-    getDeviceByName(token, resData['name'], function(isSuccess, resData) {
+    getDeviceByName(token, resData['name'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testDevice getDeviceByName', resData)
       } else {
@@ -647,7 +954,7 @@ function testDevice(token) {
       }
     })
 
-    deleteDeviceById(token, resData['id']['id'], function(isSuccess) {
+    deleteDeviceById(token, resData['id']['id'], function (isSuccess) {
       console.log('testDevice deleteDeviceById isSuccess ' + isSuccess)
     })
   })
@@ -657,10 +964,10 @@ function testDevice(token) {
  * test case about asset
  */
 function testAsset(token) {
-  createAsset(token, "test", function(isSuccess, resData) {
+  createAsset(token, "test", function (isSuccess, resData) {
     printMapObject('testAsset createAsset', resData)
 
-    getAssetById(token, resData['id']['id'], function(isSuccess, resData) {
+    getAssetById(token, resData['id']['id'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testAsset getAssetById', resData)
       } else {
@@ -668,7 +975,7 @@ function testAsset(token) {
       }
     })
 
-    getAssetByName(token, resData['name'], function(isSuccess, resData) {
+    getAssetByName(token, resData['name'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testAsset getAssetByName', resData)
       } else {
@@ -676,7 +983,7 @@ function testAsset(token) {
       }
     })
 
-    deleteAssetById(token, resData['id']['id'], function(isSuccess) {
+    deleteAssetById(token, resData['id']['id'], function (isSuccess) {
       console.log('testAsset deleteAssetById isSuccess ' + isSuccess)
     })
   })
@@ -686,10 +993,10 @@ function testAsset(token) {
  * test case about customer
  */
 function testCusomer(token) {
-  createCustomer(token, "test", function(isSuccess, resData) {
+  createCustomer(token, "test", function (isSuccess, resData) {
     printMapObject('testCusomer createCustomer', resData)
 
-    getCustomerById(token, resData['id']['id'], function(isSuccess, resData) {
+    getCustomerById(token, resData['id']['id'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testCusomer getCustomerById', resData)
       } else {
@@ -697,7 +1004,7 @@ function testCusomer(token) {
       }
     })
 
-    getCustomerByTitle(token, resData['title'], function(isSuccess, resData) {
+    getCustomerByTitle(token, resData['title'], function (isSuccess, resData) {
       if (isSuccess) {
         printMapObject('testCusomer getCustomerByTitle', resData)
       } else {
@@ -705,9 +1012,41 @@ function testCusomer(token) {
       }
     })
 
-    deleteCustomerById(token, resData['id']['id'], function(isSuccess) {
+    deleteCustomerById(token, resData['id']['id'], function (isSuccess) {
       console.log('testCusomer deleteCustomerById isSuccess ' + isSuccess)
     })
+  })
+}
+
+function testSubscription(token) {
+  const TEST_CMD_ID = 1
+  const TEST_CMD_ID_2 = 2
+  const TEST_CMD_ID_3 = 3
+  createDevice(token, "subscription_test", function (isSuccess, resData) {
+    if (isSuccess) {
+      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function (data) {
+        console.log('testSubscription subscription update TEST1 data ' + data)
+      })
+
+      subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function (data) {
+        console.log('testSubscription subscription update TEST2 data ' + data)
+      })
+
+      unsubscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_2)
+
+      setTimeout(function () {
+        subscribeInformation(token, SUBSCRIBE_TYPE_ATTR, TEST_CMD_ID_3, ENTITY_TYPE_DEVICE, resData['id']['id'], '', function (data) {
+          console.log('testSubscription subscription update TEST3 data ' + data)
+        })
+      }, 2000)
+    }
+
+    setTimeout(function () {
+      deleteDeviceById(token, resData['id']['id'], function (isSuccess) {
+        console.log('testDevice deleteDeviceById isSuccess ' + isSuccess)
+      })
+    }, 10000)
+
   })
 }
 
@@ -722,11 +1061,26 @@ function printMapObject(tag, map, indent) {
   }
 }
 
+function loginSuccess() {
+  console.log('login test isSuccess ' + isSuccess + ' token ' + token)
+  var mToken = token
+  testDevice(mToken)
+  testAsset(mToken)
+  testCusomer(mToken)
+  testSubscription(mToken)
+
+}
+
+
+
 module.exports = {
+  SUBSCRIBE_TYPE_TS: SUBSCRIBE_TYPE_TS,
+  SUBSCRIBE_TYPE_ATTR: SUBSCRIBE_TYPE_ATTR,
+  SUBSCRIBE_TYPE_HIS: SUBSCRIBE_TYPE_HIS,
+
   init: init,
   login: login,
   createDevice: createDevice,
-  saveDevice: saveDevice,
   getDeviceById: getDeviceById,
   getDeviceByName: getDeviceByName,
   deleteDeviceById: deleteDeviceById,
@@ -738,7 +1092,10 @@ module.exports = {
   getCustomerById: getCustomerById,
   getCustomerByTitle: getCustomerByTitle,
   deleteCustomerById: deleteCustomerById,
+  getDeviceTokenByDeviceId: getDeviceTokenByDeviceId,
+  utilTest: utilTest,
   subscribeInformation: subscribeInformation,
   unsubscribeInformation: unsubscribeInformation,
-  utilTest: utilTest,
+  run_ut: run_ut,
+  testPromise: testPromise,
 }

@@ -9,16 +9,28 @@
 		"postcss": true,
 		"minified": true,
 		"newFeature": true,
-		"autoAudits": false
+		"nodeModules": false,
+		"autoAudits": false,
+		"checkInvalidKey": true,
+		"checkSiteMap": true,
+		"uploadWithSourceMap": true,
+		"babelSetting": {
+			"ignore": [],
+			"disablePlugins": [],
+			"outputPath": ""
+		},
+		"enhance": true
 	},
 	"compileType": "miniprogram",
-	"libVersion": "2.6.1",
+	"libVersion": "2.7.1",
 	"appid": "wxeb614ef807b42cea",
 	"projectname": "thingsboard_test",
 	"debugOptions": {
 		"hidedInDevtools": []
 	},
 	"isGameTourist": false,
+	"simulatorType": "wechat",
+	"simulatorPluginLibVersion": {},
 	"condition": {
 		"search": {
 			"current": -1,

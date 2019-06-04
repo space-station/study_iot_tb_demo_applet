@@ -1,10 +1,57 @@
 /**index.wxss**/
-.login_button {
+
+.info{
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  font-size: 30rpx;
+  margin-top: 15rpx;
+}
+.login-label{
+  display: flex;
+  font-size: 30rpx;
+}
+.input{
+  border-bottom: 1px solid grey;
+  width: 500rpx;
+  font-size: 30rpx;
 }
 
-.login_view {
-  margin-top: 200px;
+.button{
+  display: flex;
+  margin-top:10rpx;
+  size:mini;
+  font-size: 30rpx;
+}
+
+.unsubscribe_button{
+  display: flex;
+  margin-top:15rpx;
+  size:mini;
+  font-size: 30rpx;
+  margin-left: 15rpx;
+}
+
+.button-hover{
+  background-color:grey;
+}
+
+.device-lable{
+  font-size: 30rpx;
+}
+.type-lable{
+  font-size: 30rpx;
+}
+.deviceid-label{
+  font-size: 30rpx;
+}
+
+.subscribe_reuqest{
+  display:flex;
+  flex-direction: row;
+}
+.login_status{
+  display: flex;
+  word-break: break-all;
+  width:700rpx;
+  font-size: 30rpx;
 }

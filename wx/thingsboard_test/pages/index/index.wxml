@@ -1,9 +1,55 @@
 <!--index.wxml-->
 <view class="container">
-  <view class="login_button">
-    <button bindtap='login'> 开始测试 </button>
+  <view class="login_input">
+    <view class="info" >
+      <view class="login-label" style='flex-item'>Username:</view>
+      <input class="input" bindinput="bindUsernameInput" value="{{username}}" placeholder='pls input username' style="flex-item"/>
+    </view>
+    <view class="info">
+      <view class="login-label" style="flex-item">Password:</view>
+        <input class="input" bindinput="bindPaswordInput" value="{{password}}" placeholder='pls input password' style="flex-item"/>
+    </view>
+     <view class="info">
+      <view class="login-label" style="flex-item">Server:</view>
+        <input class="input" bindinput="bindServeraddressInput" value="{{serveraddress}}" placeholder='pls input server address'style="flex-item"/>
+    </view>
+  </view>
+  <button class="button" bindtap='login' hover-class="button-hover">login</button>
+  <view class="create_device">
+    <view class="info">
+      <view class="device-lable"  style="flex-item">Name:</view>
+          <input class="input" bindinput="bindNameInput" value="{{name}}" placeholder='pls input device name' style="flex-item"/>
+    </view>
+    <view class="info">
+      <view class="type-lable"  style="flex-item">Type:</view>
+        <input class="input" bindinput="bindTypeInput" value="{{type}}" placeholder='pls input password' style="flex-item"/>
+    </view>
+  </view> 
+  <button class="button" bindtap='createdevice' hover-class="button-hover">create device</button>
+  
+  <view class="subscribe">
+    <view class="info">
+      <view class="deviceid-label" style="flex-item">DeviceID:</view>
+          <input class="input" value="{{deviceId}}" placeholder='pls input device id' style="flex-item"/>
+    </view>
+    <view class="info">
+        <picker bindchange="bindPickerChange" value="{{index}}" range="{{array}}" >
+          <view class="picker">
+            SubscribeType:{{array[index]}}
+          </view>
+        </picker>
+    </view>
+  </view>
+  
+  <view class="subscribe_reuqest">
+    <button class="button" bindtap='subscribe' style="flex-item">Subscribe</button>
+    <button class="unsubscribe_button" bindtap='unsubscribe' style="flex-item">Unsubscribe</button>
+  </view>
+  <view class="subscribe_reuqest">
+    <button class="button" bindtap='ut_run_ut' style="flex-item">Generator测试</button>
+    <button class="button" bindtap='ps_run' style="flex-item">Promise测试</button>
   </view>
   <view class="login_view">
-    <text> {{login_status}} </text>
+    <text class="login_status"> {{login_status}} </text>
   </view>
 </view>
