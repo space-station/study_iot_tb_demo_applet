@@ -727,15 +727,17 @@ function* sm_ut(cb_obj){
  * run ut
  */
 function run_ut(){
-  var cb_obj = {cb:null};
-  var gen = null;
-  if(gen){
-    gen = null;
-  }
-  var gen = sm_ut(cb_obj);
-  cb_obj.cb = gen;
+  //var cb_obj = {cb:null};
+  //var gen = null;
+  //if(gen){
+  //  gen = null;
+  //}
+  //var gen = sm_ut(cb_obj);
+  //cb_obj.cb = gen;
   //var g = sm_ut();
-  gen.next();
+  //gen.next();
+
+  testGeneratorWithPromise();
 }
 
 function* generator(task_ctx,func_success,func_fail){
@@ -763,24 +765,53 @@ function test_gen(task_ctx){
   genObj.next()
 }
 
+function testGeneratorWithPromise() {
+  var task_ctx = { token: '' };
+  task_ctx.type = "generator_with_promise"
+  co(wrapGeneratorWithPromise(task_ctx))
+  .catch(function(t_ctx){
+    console.log("exception caught inside test_gen_with_promise catch phase")
+    console.log(t_ctx)
+  });
+}
+
+function wrapGeneratorWithPromise(task_ctx){
+  return function* generatorWithPromise() {
+    init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
+    console.log("start generatorWithPromise");
+
+    try {
+      yield promiseLogin(task_ctx);
+      yield promiseCreateDevice(task_ctx, "test", "default");
+      yield promiseGetDeviceById(task_ctx);
+      yield promiseDeleteDeviceById(task_ctx)
+    }
+    catch (err) {
+      console.log("exception caught inside generator_with_promise function")
+      console.log(err)
+    }
+  }
+}
+
 
 function testPromise() {
   init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
   var task_context = { token: '' };
-  promise_login(task_context).then(function (task_context) {
+  promiseLogin(task_context)
+  .then(function (task_context) {
     console.log('token------' + task_context.token)
-    return promise_createDevice(task_context, "test", "default")
+    return promiseCreateDevice(task_context, "test", "default")
   }).then(function (task_context) {
     console.log('id------' + task_context.id)
-    return promise_getDeviceById(task_context)
-    }).then(function (task_context) {
-      console.log('start delete')
-      promise_deleteDeviceById(task_context)
+    return promiseGetDeviceById(task_context)
+  }).then(function (task_context) {
+    console.log('start delete')
+    promiseDeleteDeviceById(task_context)
   })
 
 }
 
-function promise_login(task_context) {
+function promiseLogin(task_context) {
   
   var p= new Promise(function(resolve,reject){
     wx.request({
@@ -808,7 +839,7 @@ function promise_login(task_context) {
   return p;
 }
 
-function promise_createDevice(task_context, deviceName, type) {
+function promiseCreateDevice(task_context, deviceName, type) {
   //var task_context={token:token,id:''}
   var token=task_context.token
   var p = new Promise(function (resolve, reject) {
@@ -846,7 +877,7 @@ function promise_createDevice(task_context, deviceName, type) {
 /**
  * get device by id
  */
-function promise_getDeviceById(task_context) {
+function promiseGetDeviceById(task_context) {
   var token=task_context.token
   var id=task_context.id
   var p = new Promise(function (resolve, reject) {
@@ -881,7 +912,7 @@ function promise_getDeviceById(task_context) {
 /**
  * delete device by id
  */
-function promise_deleteDeviceById(task_context) {
+function promiseDeleteDeviceById(task_context) {
   var token=task_context.token
   var id=task_context.id
   var p = new Promise(function (resolve, reject) {
