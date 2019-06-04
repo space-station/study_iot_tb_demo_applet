@@ -1,4 +1,7 @@
 //app.js
+const Promise = global.Promise = require('libs/es6-promise')
+const regeneratorRuntime = global.regeneratorRuntime = require('libs/regenerator-runtime/runtime')
+
 App({
   onLaunch: function () {
     // 展示本地存储能力

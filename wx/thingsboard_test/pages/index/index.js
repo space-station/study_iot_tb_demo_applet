@@ -1,6 +1,3 @@
-const Promise = global.Promise = require('../../libs/es6-promise')
-const regeneratorRuntime = global.regeneratorRuntime = require('../../libs/regenerator-runtime/runtime')
-
 //index.js
 //获取应用实例
 const app = getApp()
