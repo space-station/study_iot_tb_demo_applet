@@ -706,6 +706,7 @@ function ut_deleteDeviceById(task_context, gen) {
 function testGeneratorWithPromise() {
   var task_ctx = { statusCode: 200, token: ''};
   task_ctx.type = "generator_with_promise"
+  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
   co(generatorWithPromise, task_ctx)
   .catch(function(t_ctx){
     console.log("exception caught inside test_gen_with_promise catch phase")
@@ -714,10 +715,9 @@ function testGeneratorWithPromise() {
 }
 
 function* generatorWithPromise(task_ctx) {
-  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
-
   try {
     yield promiseLogin(task_ctx);
+    // test device
     yield promiseGetDeviceByName(task_ctx, "test");
     if(task_ctx.statusCode == 200){
       yield promiseDeleteDeviceById(task_ctx, task_ctx.id);
@@ -726,6 +726,26 @@ function* generatorWithPromise(task_ctx) {
     yield promiseGetDeviceById(task_ctx, task_ctx.id);
     yield promiseGetDeviceByName(task_ctx, "test");
     yield promiseDeleteDeviceById(task_ctx, task_ctx.id);
+
+    // test customer
+    yield promiseGetCustomerByTitle(task_ctx, "test");
+    if (task_ctx.statusCode == 200) {
+      yield promiseDeleteCustomerById(task_ctx, task_ctx.data['id']['id']);
+    }
+    yield promiseCreateCustomer(task_ctx, "test");
+    yield promiseGetCustomerById(task_ctx, task_ctx.data['id']['id']);
+    yield promiseGetCustomerByTitle(task_ctx, task_ctx.data['title']);
+    yield promiseDeleteCustomerById(task_ctx, task_ctx.data['id']['id']);
+
+    // test asset
+    yield promiseGetAssetByName(task_ctx, "test");
+    if (task_ctx.statusCode == 200) {
+      yield promiseDeleteAssetById(task_ctx, task_ctx.data['id']['id']);
+    }
+    yield promiseCreateAsset(task_ctx, "test");
+    yield promiseGetAssetById(task_ctx, task_ctx.data['id']['id']);
+    yield promiseGetAssetByName(task_ctx, task_ctx.data['name']);
+    yield promiseDeleteAssetById(task_ctx, task_ctx.data['id']['id']);
   }
   catch (err) {
     console.log("exception caught inside generator_with_promise function")
@@ -911,6 +931,237 @@ function promiseDeleteDeviceById(task_context, device_id) {
   return p;
 }
 
+function promiseCreateCustomer(task_context, title) {
+  return new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/customer',
+      data: {
+        title: title,
+      },
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'POST',
+      success(res) {
+        if (debug) console.log('createCustomer success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('createCustomer fail')
+        reject(task_context)
+      },
+    })
+  })
+  return p
+}
+
+function promiseGetCustomerById(task_context, id) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('getCustomerById id ' + id)
+    wx.request({
+      url: mServerAddress + '/api/customer/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getCustomerById success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('getCustomerById fail')
+        reject(task_context)
+      }
+    })
+  })
+}
+
+function promiseGetCustomerByTitle(task_context, title) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('getCustomerByTitle title ' + title)
+    wx.request({
+      url: mServerAddress + '/api/tenant/customers?customerTitle=' + title,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getCustomerByTitle success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('getCustomerByTitle fail')
+        reject(task_context)
+      }
+    })
+  })
+}
+
+function promiseDeleteCustomerById(task_context, id) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('deleteCustomerById id ' + id)
+    wx.request({
+      url: mServerAddress + '/api/customer/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'DELETE',
+      success(res) {
+        if (debug) console.log('deleteCustomerById success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('deleteCustomerById fail')
+        reject(task_context)
+      }
+    })
+  })
+}
+
+function promiseCreateAsset(task_context, assetName) {
+  return new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/asset',
+      data: {
+        name: assetName,
+        type: 'default',
+      },
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'POST',
+      success(res) {
+        if (debug) console.log('createAsset success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('createAsset fail')
+        reject(task_context)
+      },
+    })
+  })
+}
+
+function promiseGetAssetById(task_context, id) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('getAssetById id ' + id)
+    wx.request({
+      url: mServerAddress + '/api/asset/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getAssetById success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('getAssetById fail')
+        reject(task_context)
+      }
+    })
+  })
+}
+
+function promiseGetAssetByName(task_context, name) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('getAssetByName name ' + name)
+    wx.request({
+      url: mServerAddress + '/api/tenant/assets?assetName=' + name,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getAssetByName success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        task_context.data = res.data
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('getAssetByName fail')
+        reject(task_context)
+      }
+    })
+  })
+}
+
+function promiseDeleteAssetById(task_context, id) {
+  return new Promise(function (resolve, reject) {
+    if (debug) console.log('deleteAssetById id ' + id)
+    wx.request({
+      url: mServerAddress + '/api/asset/' + id,
+      header: {
+        'X-Authorization': 'Bearer ' + task_context.token,
+      },
+      method: 'DELETE',
+      success(res) {
+        if (debug) console.log('deleteAssetById success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context)
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context)
+        } else {
+          resolve(task_context)
+        }
+      },
+      fail(res) {
+        if (debug) console.log('deleteAssetById fail')
+        reject(task_context)
+      }
+    })
+  })
+}
 
 /**
  * test all function
@@ -1069,8 +1320,6 @@ function loginSuccess() {
   testSubscription(mToken)
 
 }
-
-
 
 module.exports = {
   SUBSCRIBE_TYPE_TS: SUBSCRIBE_TYPE_TS,
