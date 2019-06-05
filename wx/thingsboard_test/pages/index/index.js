@@ -81,16 +81,14 @@ Page({
 
   },
 
-  ut_run_ut: function(){
-    console.log("start ut_run_ut");
-    thingsBoardUtil.run_ut();
-    console.log("start ut_run_ut, last line");
+  run_generator: function(){
+    console.log("start run_generator");
+    thingsBoardUtil.testGeneratorWithPromise();
   },
 
-  ps_run: function () {
-    console.log("start ps run--------");
+  run_promise: function () {
+    console.log("start run_promise run--------");
     thingsBoardUtil.testPromise();
-    console.log("ps run end----------");
   },
 
   createdevice: function() {

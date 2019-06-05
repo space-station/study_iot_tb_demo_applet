@@ -46,8 +46,8 @@
     <button class="unsubscribe_button" bindtap='unsubscribe' style="flex-item">Unsubscribe</button>
   </view>
   <view class="subscribe_reuqest">
-    <button class="button" bindtap='ut_run_ut' style="flex-item">Generator测试</button>
-    <button class="button" bindtap='ps_run' style="flex-item">Promise测试</button>
+    <button class="button" bindtap='run_generator' style="flex-item">Generator测试</button>
+    <button class="button" bindtap='run_promise' style="flex-item">Promise测试</button>
   </view>
   <view class="login_view">
     <text class="login_status"> {{login_status}} </text>

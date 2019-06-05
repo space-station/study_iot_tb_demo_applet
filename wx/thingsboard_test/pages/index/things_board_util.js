@@ -703,13 +703,6 @@ function ut_deleteDeviceById(task_context, gen) {
   })
 }
 
-/**
- * run ut
- */
-function run_ut(){
-  testGeneratorWithPromise();
-}
-
 function testGeneratorWithPromise() {
   var task_ctx = { statusCode: 200, token: ''};
   task_ctx.type = "generator_with_promise"
@@ -749,10 +742,10 @@ function testPromise() {
     return promiseCreateDevice(task_context, "test", "default")
   }).then(function (task_context) {
     console.log('id------' + task_context.id)
-    return promiseGetDeviceById(task_context)
+    return promiseGetDeviceById(task_context, task_context.id)
   }).then(function (task_context) {
     console.log('start delete')
-    promiseDeleteDeviceById(task_context)
+    promiseDeleteDeviceById(task_context, task_context.id)
   })
 
 }
@@ -1102,6 +1095,6 @@ module.exports = {
   utilTest: utilTest,
   subscribeInformation: subscribeInformation,
   unsubscribeInformation: unsubscribeInformation,
-  run_ut: run_ut,
+  testGeneratorWithPromise: testGeneratorWithPromise,
   testPromise: testPromise,
 }
