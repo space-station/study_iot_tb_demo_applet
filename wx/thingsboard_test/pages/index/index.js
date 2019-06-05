@@ -1,7 +1,8 @@
 //index.js
 //获取应用实例
 const app = getApp()
-var thingsBoardUtil = require('./things_board_util.js')
+var thingsBoardUtil = require('./thingsboard-util.js')
+var thingsBoardPromise = require('./thingsboard-promise.js')
 var mToken = ''
 var mdeviceId = ''
 var mdeviceToken = ''
@@ -83,12 +84,12 @@ Page({
 
   run_generator: function(){
     console.log("start run_generator");
-    thingsBoardUtil.testGeneratorWithPromise();
+    thingsBoardPromise.testCo();
   },
 
   run_promise: function () {
     console.log("start run_promise run--------");
-    thingsBoardUtil.testPromise();
+    thingsBoardPromise.testPromise();
   },
 
   createdevice: function() {
