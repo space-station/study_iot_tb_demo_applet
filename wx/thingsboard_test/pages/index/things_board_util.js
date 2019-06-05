@@ -704,69 +704,14 @@ function ut_deleteDeviceById(task_context, gen) {
 }
 
 /**
- * sm of the util test
- */
-function* sm_ut(cb_obj){
-  init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
-  var task_context = { token: '' };
-  //var token = yield ut_login(cb_obj.cb);
-  task_context= yield ut_login(task_context,cb_obj.cb)
-  console.log("login process done");
-  //var data = yield ut_createDevice(token, "test", "default", cb_obj.cb);
-  task_context = yield ut_createDevice(task_context, "test", "default", cb_obj.cb)
-  console.log("create device process done");
-  //yield ut_getDeviceById(token, data['id']['id'], cb_obj.cb)
-  yield ut_getDeviceById(task_context, cb_obj.cb)
-  console.log("get device process done");
-  //yield ut_deleteDeviceById(token, data['id']['id'], cb_obj.cb)
-  yield ut_deleteDeviceById(task_context,cb_obj.cb)
-  console.log("delete device process done");
-}
-
-/**
  * run ut
  */
 function run_ut(){
-  //var cb_obj = {cb:null};
-  //var gen = null;
-  //if(gen){
-  //  gen = null;
-  //}
-  //var gen = sm_ut(cb_obj);
-  //cb_obj.cb = gen;
-  //var g = sm_ut();
-  //gen.next();
-
   testGeneratorWithPromise();
 }
 
-function* generator(task_ctx,func_success,func_fail){
-  init('http://192.168.4.119:8080','ws://192.168.4.119:8080')
-  try{
-    yield login('tenant@thingsboard.org', 'tenant',task_ctx,func_success,func_fail)
-    yield createDevice('test','default',task_ctx,func_success,func_fail)
-  }
-  catch(err){
-    console.log("exception caught inside generator function")
-    console.log(err)
-  }
-} 
-
-function test_gen(task_ctx){
-  task_ctx.type="generator"
-  var genObj
-  var func_success=function(t_ctx){
-    genObj.next(t_ctx)
-  }
-  var func_fail=function(t_ctx){
-    genObj.throw(t_ctx)
-  }
-  genObj=generator(task_ctx,func_success,func_fail);
-  genObj.next()
-}
-
 function testGeneratorWithPromise() {
-  var task_ctx = { token: '' };
+  var task_ctx = { statusCode: 200, token: ''};
   task_ctx.type = "generator_with_promise"
   co(generatorWithPromise, task_ctx)
   .catch(function(t_ctx){
@@ -777,13 +722,17 @@ function testGeneratorWithPromise() {
 
 function* generatorWithPromise(task_ctx) {
   init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080')
-  console.log("start generatorWithPromise");
 
   try {
     yield promiseLogin(task_ctx);
+    yield promiseGetDeviceByName(task_ctx, "test");
+    if(task_ctx.statusCode == 200){
+      yield promiseDeleteDeviceById(task_ctx, task_ctx.id);
+    }
     yield promiseCreateDevice(task_ctx, "test", "default");
-    yield promiseGetDeviceById(task_ctx);
-    yield promiseDeleteDeviceById(task_ctx)
+    yield promiseGetDeviceById(task_ctx, task_ctx.id);
+    yield promiseGetDeviceByName(task_ctx, "test");
+    yield promiseDeleteDeviceById(task_ctx, task_ctx.id);
   }
   catch (err) {
     console.log("exception caught inside generator_with_promise function")
@@ -793,7 +742,7 @@ function* generatorWithPromise(task_ctx) {
 
 function testPromise() {
   init('http://192.168.4.119:8080', 'ws://192.168.4.119:8080');
-  var task_context = { token: '' };
+  var task_context = { statusCode: 200, token: ''};
   promiseLogin(task_context)
   .then(function (task_context) {
     console.log('token------' + task_context.token)
@@ -809,7 +758,6 @@ function testPromise() {
 }
 
 function promiseLogin(task_context) {
-  
   var p= new Promise(function(resolve,reject){
     wx.request({
       url: mServerAddress + '/api/auth/login',
@@ -821,15 +769,14 @@ function promiseLogin(task_context) {
       success(res) {
         if (debug) console.log('login success status code ' + res.statusCode + ' data ' + res.data['token'])
         var token = res.data['token']
-        //callback(true, res.data['token'])
-        //gen.next(res.data['token']);
         task_context.token=token
+        task_context.statusCode = res.statusCode;
         resolve(task_context)
       },
       fail(res) {
         if (debug) console.log('login fail')
-        reject('login failed')
-        //callback(false, null)
+        task_context.statusCode = res.statusCode;
+        reject(task_context)
       },
     })
   })
@@ -837,7 +784,6 @@ function promiseLogin(task_context) {
 }
 
 function promiseCreateDevice(task_context, deviceName, type) {
-  //var task_context={token:token,id:''}
   var token=task_context.token
   var p = new Promise(function (resolve, reject) {
     wx.request({
@@ -852,10 +798,10 @@ function promiseCreateDevice(task_context, deviceName, type) {
       method: 'POST',
       success(res) {
         if (debug) console.log('createDevice success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode;
         if (res.statusCode == HTTP_UNAUTHORIZED) {
-          //callback(false, res.data)
+          reject(task_context);
         } else {
-          //gen.next(res.data)
           console.log('device id=' + res.data['id']['id'])
           task_context.id = res.data['id']['id']
           resolve(task_context)
@@ -863,8 +809,8 @@ function promiseCreateDevice(task_context, deviceName, type) {
       },
       fail(res) {
         if (debug) console.log('createDevice fail')
-        reject('createDevice failed')
-        //callback(false, null)
+        task_context.statusCode = res.statusCode;
+        reject(task_context);
       },
     })
   })
@@ -874,66 +820,98 @@ function promiseCreateDevice(task_context, deviceName, type) {
 /**
  * get device by id
  */
-function promiseGetDeviceById(task_context) {
+function promiseGetDeviceById(task_context, device_id) {
   var token=task_context.token
-  var id=task_context.id
   var p = new Promise(function (resolve, reject) {
     wx.request({
-      url: mServerAddress + '/api/device/' + id,
+      url: mServerAddress + '/api/device/' + device_id,
       header: {
         'X-Authorization': 'Bearer ' + token,
       },
       method: 'GET',
       success(res) {
-        if (debug) console.log('getDeviceById success status code ' + res.statusCode)
+        if (debug) console.log('promiseGetDeviceById success statusCode: ' + res.statusCode)
+        task_context.statusCode = res.statusCode;
         if (res.statusCode == HTTP_UNAUTHORIZED) {
-          //callback(false, res.data)
+          reject(task_context);
         } else if (res.statusCode == HTTP_NOT_FOUND) {
-          //callback(false, res.data)
+          resolve(task_context);
         } else {
-          //var ret = gen.next(res.data)
-          resolve(task_context)
           console.log("get device by id success ")
+          resolve(task_context)
         }
       },
       fail(res) {
         if (debug) console.log('getDeviceById fail')
-        reject('getDeviceById failed')
-        //callback(false, null)
+        task_context.statusCode = res.statusCode;
+        reject(task_context);
       },
     })
   })
   return p;
 }
 
+function promiseGetDeviceByName(task_context, device_name) {
+  if (debug) console.log('promiseGetDeviceByName, name: ', device_name);
+  var token = task_context.token;
+  var p = new Promise(function (resolve, reject) {
+    wx.request({
+      url: mServerAddress + '/api/tenant/devices?deviceName=' + device_name,
+      header: {
+        'X-Authorization': 'Bearer ' + token,
+      },
+      method: 'GET',
+      success(res) {
+        if (debug) console.log('getDeviceByName success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode;
+        if (res.statusCode == HTTP_UNAUTHORIZED) {
+          reject(task_context);
+        } else if (res.statusCode == HTTP_NOT_FOUND) {
+          resolve(task_context);
+        } else {
+          console.log('device id=' + res.data['id']['id'])
+          task_context.id = res.data['id']['id']
+          resolve(task_context);
+        }
+      },
+      fail(res) {
+        if (debug) console.log('promiseGetDeviceByName fail')
+        task_context.statusCode = res.statusCode;
+        reject(task_context);
+      }
+    })
+  });
+  return p;
+}
+
 /**
  * delete device by id
  */
-function promiseDeleteDeviceById(task_context) {
+function promiseDeleteDeviceById(task_context, device_id) {
   var token=task_context.token
-  var id=task_context.id
   var p = new Promise(function (resolve, reject) {
     wx.request({
-      url: mServerAddress + '/api/device/' + id,
+      url: mServerAddress + '/api/device/' + device_id,
       header: {
         'X-Authorization': 'Bearer ' + token,
       },
       method: 'DELETE',
       success(res) {
         if (debug) console.log('deleteDeviceById success status code ' + res.statusCode)
+        task_context.statusCode = res.statusCode;
         if (res.statusCode == HTTP_UNAUTHORIZED) {
-          //callback(false)
+          reject(task_context);
         } else if (res.statusCode == HTTP_NOT_FOUND) {
-          //callback(false)
+          resolve(task_context);
         } else {
-          //ret = gen.next();
           console.log('deleteDeviceById success!!!')
+          resolve(task_context);
         }
       },
       fail(res) {
         if (debug) console.log('deleteDeviceById fail')
-        reject('deleteDeviceById failed')
-        //callback(false)
+        task_context.statusCode = res.statusCode;
+        reject(task_context);
       }
     })
   })
