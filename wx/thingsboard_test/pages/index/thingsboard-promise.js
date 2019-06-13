@@ -130,17 +130,31 @@ async function testCo() {
   task_ctx.wsServerAddress = "ws://192.168.4.119:8080";
   task_ctx.statusCode = 200;
   task_ctx.token = "";
+  task_ctx.username ="tenant@thingsboard.org"
+  task_ctx.password="tenant"
 
-  await co(generatorWithPromise, task_ctx)
+  await co(generatorWithPromise_Device, task_ctx)
   .catch(function(t_ctx){
-    console.log("exception caught inside test_gen_with_promise catch phase")
+    console.log("exception caught inside device catch phase")
+    console.log(t_ctx)
+  });
+
+  await co(generatorWithPromise_Customer, task_ctx)
+  .catch(function (t_ctx) {
+    console.log("exception caught inside customer catch phase")
+    console.log(t_ctx)
+  });
+
+  await co(generatorWithPromise_Asset, task_ctx)
+  .catch(function (t_ctx) {
+    console.log("exception caught inside asset catch phase")
     console.log(t_ctx)
   });
   
   clearContext(task_ctx);
 }
 
-function* generatorWithPromise(task_ctx) {
+function* generatorWithPromise_Device(task_ctx) {
   try {
     yield promiseLogin(task_ctx);
     // test device
@@ -152,7 +166,14 @@ function* generatorWithPromise(task_ctx) {
     yield promiseGetDeviceById(task_ctx, task_ctx.id);
     yield promiseGetDeviceByName(task_ctx, "test");
     yield promiseDeleteDeviceById(task_ctx, task_ctx.id);
-
+  }
+  catch (err) {
+    console.log("exception caught inside device function")
+    console.log(err)
+  }
+}
+function* generatorWithPromise_Customer(task_ctx) {
+  try {
     // test customer
     yield promiseGetCustomerByTitle(task_ctx, "test");
     if (task_ctx.statusCode == 200) {
@@ -162,7 +183,15 @@ function* generatorWithPromise(task_ctx) {
     yield promiseGetCustomerById(task_ctx, task_ctx.data['id']['id']);
     yield promiseGetCustomerByTitle(task_ctx, task_ctx.data['title']);
     yield promiseDeleteCustomerById(task_ctx, task_ctx.data['id']['id']);
+  }
+  catch (err) {
+    console.log("exception caught inside customer function")
+    console.log(err)
+  }
+}
 
+function* generatorWithPromise_Asset(task_ctx) {
+  try {
     // test asset
     yield promiseGetAssetByName(task_ctx, "test");
     if (task_ctx.statusCode == 200) {
@@ -174,10 +203,11 @@ function* generatorWithPromise(task_ctx) {
     yield promiseDeleteAssetById(task_ctx, task_ctx.data['id']['id']);
   }
   catch (err) {
-    console.log("exception caught inside generator_with_promise function")
+    console.log("exception caught inside asset function")
     console.log(err)
   }
 }
+
 
 function testPromise() {
   var task_ctx = createContext();
@@ -186,6 +216,8 @@ function testPromise() {
   task_ctx.wsServerAddress = "ws://192.168.4.119:8080";
   task_ctx.statusCode = 200;
   task_ctx.token = "";
+  task_ctx.username = "tenant@thingsboard.org"
+  task_ctx.password = "tenant"
 
   promiseLogin(task_ctx)
   .then(function (ctx) {
@@ -201,7 +233,7 @@ function testPromise() {
     promiseDeleteDeviceById(ctx, ctx.id)
   })
 
-  clearContext(task_ctx);
+  //clearContext(task_ctx);
 }
 
 function promiseLogin(task_context) {
@@ -209,8 +241,8 @@ function promiseLogin(task_context) {
     wx.request({
       url: task_context.restServerAddress + '/api/auth/login',
       data: {
-        username: 'tenant@thingsboard.org',
-        password: 'tenant',
+        username: task_context.username,
+        password: task_context.password,
       },
       method: 'POST',
       success(res) {
@@ -676,20 +708,20 @@ module.exports = {
   SUBSCRIBE_TYPE_HIS: SUBSCRIBE_TYPE_HIS,
 
   createContext: createContext,
-  login: promiseLogin,
-  createDevice: promiseCreateDevice,
-  getDeviceById: promiseGetDeviceById,
-  getDeviceByName: promiseGetDeviceByName,
-  deleteDeviceById: promiseDeleteDeviceById,
-  createAsset: promiseCreateAsset,
-  getAssetById: promiseGetAssetById,
-  getAssetByName: promiseGetAssetByName,
-  deleteAssetById: promiseDeleteAssetById,
-  createCustomer: promiseCreateCustomer,
-  getCustomerById: promiseGetCustomerById,
-  getCustomerByTitle: promiseGetCustomerByTitle,
-  deleteCustomerById: promiseDeleteCustomerById,
-  getDeviceTokenByDeviceId: promiseGetDeviceTokenByDeviceId,
+  promiseLogin: promiseLogin,
+  promiseCreateDevice: promiseCreateDevice,
+  promiseGetDeviceById: promiseGetDeviceById,
+  promiseGetDeviceByName: promiseGetDeviceByName,
+  promiseDeleteDeviceById: promiseDeleteDeviceById,
+  promiseCreateAsset: promiseCreateAsset,
+  promiseGetAssetById: promiseGetAssetById,
+  promiseGetAssetByName: promiseGetAssetByName,
+  promiseDeleteAssetById: promiseDeleteAssetById,
+  promiseCreateCustomer: promiseCreateCustomer,
+  promiseGetCustomerById: promiseGetCustomerById,
+  promiseGetCustomerByTitle: promiseGetCustomerByTitle,
+  promiseDeleteCustomerById: promiseDeleteCustomerById,
+  promiseGetDeviceTokenByDeviceId: promiseGetDeviceTokenByDeviceId,
   subscribeInformation: subscribeInformation,
   unsubscribeInformation: unsubscribeInformation,
   testCo: testCo,

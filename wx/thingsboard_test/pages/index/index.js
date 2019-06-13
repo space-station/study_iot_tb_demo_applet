@@ -65,20 +65,29 @@ Page({
   },
   login: function() {
     var pageopt = this
-    thingsBoardUtil.init('http://' + this.data.serveraddress, 'ws://' + this.data.serveraddress)
-    var t_ctx={token:''};
-    thingsBoardUtil.login(this.data.username, this.data.password,t_ctx,
-      function(t_ctx) {
+    var t_ctx = {}
+    t_ctx.type = "generator_with_promise"
+    t_ctx.restServerAddress = "http://" + this.data.serveraddress
+    t_ctx.wsServerAddress = "ws://" + this.data.serveraddress
+    t_ctx.statusCode = 200
+    t_ctx.token = ""
+    t_ctx.username = this.data.username
+    t_ctx.password = this.data.password
+    //thingsBoardUtil.init('http://' + this.data.serveraddress, 'ws://' + this.data.serveraddress)
+    thingsBoardPromise.promiseLogin(t_ctx).then(function (ctx) {
+      console.log('token------' + ctx.token)
+      if(ctx.statusCode!=200){
+        pageopt.setData({
+           login_status: 'login is Failed'
+         })
+      }
+      else{
         mToken = t_ctx.token
         pageopt.setData({
-          login_status: 'login is Success, token=' + mToken
-        })
-      },
-      function (t_ctx){
-        pageopt.setData({
-          login_status: 'login is Failed'
-        })
-      })
+           login_status: 'login is Success, token=' + mToken
+         })
+      }
+    })
 
   },
 
@@ -95,26 +104,23 @@ Page({
   createdevice: function() {
     var pageopt = this
     var t_ctx = { token: mToken,id:'' };
-    thingsBoardUtil.createDevice(this.data.name, this.data.type,t_ctx,
-      function (t_ctx) {
-        mdeviceId = t_ctx.id
-        mToken=t_ctx.token
-        thingsBoardUtil.getDeviceTokenByDeviceId(mToken, mdeviceId, function(isSuccess, deviceToken) {
-            mdeviceToken = deviceToken
-            pageopt.setData({
-              login_status: 'create device Success, id=' + mdeviceId + ', device token=' + mdeviceToken
-            })
-            pageopt.setData({
-              deviceId: mdeviceId
-            })
-        })
-      },
-      function(t_ctx){
+    t_ctx.restServerAddress = "http://" + this.data.serveraddress
+    t_ctx.wsServerAddress = "ws://" + this.data.serveraddress
+    t_ctx.statusCode = 200
+    thingsBoardPromise.promiseCreateDevice(t_ctx, this.data.name, this.data.type).then(function (ctx) {
+      console.log('token------' + ctx.token)
+      if (ctx.statusCode != 200) {
         pageopt.setData({
           login_status: 'create device Failed'
         })
-      })
-
+      }
+      else {
+        mdeviceId = ctx.id
+        pageopt.setData({
+          login_status: 'create device Success, id=' + mdeviceId
+        })
+      }
+    })
   },
   subscribe: function() {
     const TEST_CMD_ID = 1
