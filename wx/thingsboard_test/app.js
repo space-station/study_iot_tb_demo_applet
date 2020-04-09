@@ -1,6 +1,6 @@
 //app.js
-const Promise = global.Promise = require('libs/es6-promise')
-const regeneratorRuntime = global.regeneratorRuntime = require('libs/regenerator-runtime/runtime')
+//const Promise = global.Promise = require('./libs/es6-promise.js')
+//const regeneratorRuntime = global.regeneratorRuntime = require('libs/regenerator-runtime/runtime')
 
 App({
   onLaunch: function () {

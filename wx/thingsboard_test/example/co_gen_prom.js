@@ -1,5 +1,6 @@
 'use strict';
-const co = require('co')
+const Promise = require('../libs/es6-promise')
+const co = require('../libs/co')
 
 function main(){
     var task_ctx = {success:true, text:""};

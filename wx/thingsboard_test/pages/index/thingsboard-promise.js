@@ -1,3 +1,6 @@
+// this 'const Promise' line doesn't work
+//const Promise = require('../../libs/es6-promise')
+import Promise from '../../libs/es6-promise/promise'
 const co = require('../../libs/co')
 
 const debug = true
